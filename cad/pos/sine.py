@@ -41,13 +41,14 @@ class PositionalEncoding(nn.Module):
         pos = self.encode(x)
         if self.out_proj is not None:
             pos = self.out_proj(pos)
-        if self.mode == 'add':
-            return x + pos
-        elif self.mode == 'cat':
-            return torch.cat((x, pos), dim=-1)
-        else:
-            print('mode %s not supported' % self.mode)
-            assert 1==2
+        return pos
+        # if self.mode == 'add':
+            # return x + pos
+        # elif self.mode == 'cat':
+            # return torch.cat((x, pos), dim=-1)
+        # else:
+            # print('mode %s not supported' % self.mode)
+            # assert 1==2
 
 
 @POSITIONAL_ENCODING.register_module()
@@ -82,4 +83,6 @@ class SineEncoding2d(PositionalEncoding):
         pos_y = self.sine_transform(y / y.max())
         pos_x = self.sine_transform(x / x.max())
         pos = torch.cat([pos_y, pos_x], dim=-1)
+        pos = pos.unsqueeze(0)
+        pos = pos.expand(B, -1, -1, -1)
         return pos

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn.bricks.registry import ATTENTION
-# from ..builder import ATTENTION
+
 
 #basic scaled dot product attn
 @ATTENTION.register_module()
@@ -15,7 +15,7 @@ class QKVAttention(nn.Module):
                  in_proj=True, 
                  out_proj=True,
                  attn_drop=0.1, 
-                 seq_drop=0.1,
+                 seq_drop=0.0,
                  return_weights=False,
                  v_dim=None
         ):
@@ -59,9 +59,11 @@ class QKVAttention(nn.Module):
         x = x.transpose(0, 1)  #B L D
         return x
     
-    #q,k,v are B L D
+    #q,k,v are B ... D
     #offset must be broadcastable to add with to B nh L L
     def forward(self, q, k, v, offset=0):
+        orig_shape = q.shape
+        q, k, v = (x.reshape(x.shape[0], -1, x.shape[-1]) for x in (q, k, v))
         if self.in_proj:
             q = self.in_proj['q'](q)
             k = self.in_proj['k'](k)
@@ -80,6 +82,7 @@ class QKVAttention(nn.Module):
             out = self.out_proj(out)
         
         out = self.seq_dropout(out.unsqueeze(-1)).squeeze(-1)
+        out = out.reshape(orig_shape)
 
         if self.return_weights:
             out = (out, A)

@@ -1,1 +1,2 @@
-from .qkv_attn import QKVAttention
+from .qkv_attn import *
+from .res_attn import *
