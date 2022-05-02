@@ -39,12 +39,12 @@ class DETRDecoder(BaseModule):
                 xavier_init(m, distribution='uniform')
         self._is_init = True
 
-    def forward(self, embeds_pos, feats, feats_pos):
+    def forward(self, embeds_pos, feats, feats_pos, offset=0):
         output = []
         embeds = torch.zeros_like(embeds_pos)
         for i in range(self.num_layers):
             embeds = self.self_attns[i](embeds, embeds_pos)
-            embeds = self.cross_attns[i](embeds, feats, embeds_pos, feats_pos)
+            embeds = self.cross_attns[i](embeds, feats, embeds_pos, feats_pos, offset=offset)
             embeds = self.ffns[i](embeds)
             embeds = self.shared_norm(embeds)
             output.append(embeds.unsqueeze(0))
@@ -80,9 +80,9 @@ class DETREncoder(BaseModule):
                 xavier_init(m, distribution='uniform')
         self._is_init = True
 
-    def forward(self, feats, feats_pos):
+    def forward(self, feats, feats_pos, offset=0):
         for i in range(self.num_layers):
-            feats = self.self_attns[i](feats, feats_pos)
+            feats = self.self_attns[i](feats, feats_pos, offset=offset)
             feats = self.ffns[i](feats)
         return feats
 
