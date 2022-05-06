@@ -46,8 +46,7 @@ class DETRDecoder(BaseModule):
             embeds = self.self_attns[i](embeds, embeds_pos)
             embeds = self.cross_attns[i](embeds, feats, embeds_pos, feats_pos, offset=offset)
             embeds = self.ffns[i](embeds)
-            embeds = self.shared_norm(embeds)
-            output.append(embeds.unsqueeze(0))
+            output.append(self.shared_norm(embeds).unsqueeze(0))
         output = torch.cat(output, dim=0)
         if self.return_all_layers:
             return output
@@ -62,7 +61,7 @@ class DETREncoder(BaseModule):
             num_layers=6,
             self_attn_cfg=None,
             ffn_cfg=None,
-            shared_norm_cfg=None,
+            out_norm_cfg=None,
             init_cfg=None
         ):
         super().__init__(init_cfg)
@@ -70,9 +69,12 @@ class DETREncoder(BaseModule):
         self.self_attns = [build_from_cfg(self_attn_cfg, ATTENTION) for i in range(num_layers)]
         self.ffns = [build_from_cfg(ffn_cfg, FEEDFORWARD_NETWORK) for i in range(num_layers)]
         
+        self.dim = self.self_attns[0].attn.qk_dim
+        self.out_norm = build_norm_layer(out_norm_cfg, self.dim)[1]
+        
         self.self_attns = nn.ModuleList(self.self_attns)
         self.ffns = nn.ModuleList(self.ffns)
-    
+
     def init_weights(self):
         # follow the official DETR to init parameters
         for m in self.modules():
@@ -84,6 +86,5 @@ class DETREncoder(BaseModule):
         for i in range(self.num_layers):
             feats = self.self_attns[i](feats, feats_pos, offset=offset)
             feats = self.ffns[i](feats)
+        feats = self.out_norm(feats)
         return feats
-
-

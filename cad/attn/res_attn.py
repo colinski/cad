@@ -13,7 +13,7 @@ class ResSelfAttn(BaseModule):
     def __init__(self,
                  attn_cfg=None,
                  norm_cfg=dict(type='LN'),
-                 dropout_cfg=dict(type='DropPath', drop_prob=0.1),
+                 dropout_cfg=dict(type='DropPath', drop_prob=0.0),
                  init_cfg=None
         ):
         super().__init__(init_cfg)
@@ -23,11 +23,11 @@ class ResSelfAttn(BaseModule):
     
     def forward(self, x, x_pos=None, offset=0):
         identity = x
-        x = self.norm(x)
         encoded_x = x if x_pos is None else x + x_pos
         x = self.attn(encoded_x, encoded_x, x, offset=offset)
         x = self.dropout(x)
         x = identity + x
+        x = self.norm(x)
         return x
 
 @ATTENTION.register_module()
@@ -35,7 +35,7 @@ class ResCrossAttn(BaseModule):
     def __init__(self,
                  attn_cfg=None,
                  norm_cfg=dict(type='LN'),
-                 dropout_cfg=dict(type='DropPath', drop_prob=0.1),
+                 dropout_cfg=dict(type='DropPath', drop_prob=0.0),
                  init_cfg=None
         ):
         super().__init__(init_cfg)
@@ -45,10 +45,10 @@ class ResCrossAttn(BaseModule):
     
     def forward(self, x, feats, x_pos=None, feats_pos=None, offset=0):
         identity = x
-        x = self.norm(x)
         encoded_x = x if x_pos is None else x + x_pos
         encoded_feats = feats if feats_pos is None else feats + feats_pos
         x = self.attn(encoded_x, encoded_feats, feats, offset=offset)
         x = self.dropout(x)
         x = identity + x
+        x = self.norm(x)
         return x

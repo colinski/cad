@@ -16,7 +16,7 @@ class SLP(BaseModule):
                  expansion_ratio=4,
                  act_cfg=dict(type='GELU'),
                  norm_cfg=dict(type='LN'),
-                 dropout_cfg=dict(type='DropPath', drop_prob=0.1),
+                 dropout_cfg=dict(type='DropPath', drop_prob=0.0),
                  init_cfg=None
         ):
         super(SLP, self).__init__(init_cfg)
@@ -37,8 +37,8 @@ class SLP(BaseModule):
 
     def forward(self, x):
         identity = x
-        x = self.norm(x)
         x = self.layers(x)
         x = self.dropout(x)
         x = x + identity
+        x = self.norm(x)
         return x

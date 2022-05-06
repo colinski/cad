@@ -29,7 +29,7 @@ class SineTransform(nn.Module):
         return pos.squeeze(-1)
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, dim=256, mode='add', out_proj=True):
+    def __init__(self, dim=256, mode='add', out_proj=False):
         super().__init__()
         self.dim = dim
         self.mode = mode
@@ -53,7 +53,7 @@ class PositionalEncoding(nn.Module):
 
 @POSITIONAL_ENCODING.register_module()
 class LearnedEncoding1d(PositionalEncoding):
-    def __init__(self, num_embeds=100, dim=256, mode='add', out_proj=True):
+    def __init__(self, num_embeds=100, dim=256, mode='add', out_proj=False):
         super().__init__(mode=mode, out_proj=out_proj)
         self.weight = nn.Embedding(num_embeds, dim).weight
         self.dim = dim
@@ -67,22 +67,23 @@ class LearnedEncoding1d(PositionalEncoding):
 
 @POSITIONAL_ENCODING.register_module()
 class SineEncoding2d(PositionalEncoding):
-    def __init__(self, dim=256, mode='add', out_proj=True, scale=2 * math.pi):
+    def __init__(self, dim=256, mode='add', out_proj=False, scale=2 * math.pi):
         super().__init__(mode=mode, out_proj=out_proj)
         self.dim = dim
         self.scale = scale
         self.sine_transform = SineTransform(dim//2, scale=scale)
 
-    def encode(self, x):
-        B, H, W, C = x.shape
-        mask = torch.ones(H, W)
-        mask = mask.to(dtype=torch.int, device=x.device)
+    def encode(self, mask):
+        B, H, W = mask.shape
+        # B, H, W, C = x.shape
+        # mask = torch.ones(H, W)
+        # mask = mask.to(dtype=torch.int, device=x.device)
         # mask = 1 - mask  # logical_not
-        y = mask.cumsum(0, dtype=torch.float32)
-        x = mask.cumsum(1, dtype=torch.float32)
+        y = mask.cumsum(1, dtype=torch.float32)
+        x = mask.cumsum(2, dtype=torch.float32)
         pos_y = self.sine_transform(y / y.max())
         pos_x = self.sine_transform(x / x.max())
         pos = torch.cat([pos_y, pos_x], dim=-1)
-        pos = pos.unsqueeze(0)
-        pos = pos.expand(B, -1, -1, -1)
+        #pos = pos.unsqueeze(0)
+        # pos = pos.expand(B, -1, -1, -1)
         return pos
