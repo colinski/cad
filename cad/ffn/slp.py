@@ -5,8 +5,6 @@ from mmcv.cnn import build_norm_layer
 from mmcv.cnn.bricks.registry import DROPOUT_LAYERS, ACTIVATION_LAYERS, NORM_LAYERS, FEEDFORWARD_NETWORK
 from mmcv.runner.base_module import BaseModule#, ModuleList
 from mmcv import build_from_cfg
-from ..util import Residual
-# from ..builder import BLOCKS
 
 #single layer perceptron
 @FEEDFORWARD_NETWORK.register_module()
@@ -15,8 +13,8 @@ class SLP(BaseModule):
                  in_channels=256,
                  expansion_ratio=4,
                  act_cfg=dict(type='GELU'),
-                 norm_cfg=dict(type='LN'),
-                 dropout_cfg=dict(type='DropPath', drop_prob=0.0),
+                 out_norm_cfg=dict(type='LN'),
+                 res_dropout_cfg=dict(type='DropPath', drop_prob=0.1),
                  init_cfg=None
         ):
         super(SLP, self).__init__(init_cfg)
@@ -26,19 +24,12 @@ class SLP(BaseModule):
             build_from_cfg(act_cfg, ACTIVATION_LAYERS),
             nn.Linear(hidden_dim, in_channels)
         )
-        self.norm = build_norm_layer(norm_cfg, in_channels)[1]
-        self.dropout = build_from_cfg(dropout_cfg, DROPOUT_LAYERS)
+        self.out_norm = build_norm_layer(out_norm_cfg, in_channels)[1]
+        self.res_dropout = build_from_cfg(res_dropout_cfg, DROPOUT_LAYERS)
     
-    # def init_weights(self):
-        # pass
-    
-    # def _forward(self, x):
-        # return self.layers(x)
-
     def forward(self, x):
         identity = x
         x = self.layers(x)
-        x = self.dropout(x)
-        x = x + identity
-        x = self.norm(x)
+        x = identity + self.res_dropout(x)
+        x = self.out_norm(x)
         return x

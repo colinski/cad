@@ -15,7 +15,7 @@ class DETRDecoder(BaseModule):
             self_attn_cfg=None,
             cross_attn_cfg=None,
             ffn_cfg=None,
-            shared_norm_cfg=None,
+            out_norm_cfg=dict(type='LN'),
             return_all_layers=False,
             init_cfg=None
         ):
@@ -30,7 +30,7 @@ class DETRDecoder(BaseModule):
         self.self_attns = nn.ModuleList(self.self_attns)
         self.cross_attns = nn.ModuleList(self.cross_attns)
         self.ffns = nn.ModuleList(self.ffns)
-        self.shared_norm = build_norm_layer(shared_norm_cfg, self.dim)[1]
+        self.out_norm = build_norm_layer(out_norm_cfg, self.dim)[1]
     
     def init_weights(self):
         # follow the official DETR to init parameters
@@ -39,19 +39,18 @@ class DETRDecoder(BaseModule):
                 xavier_init(m, distribution='uniform')
         self._is_init = True
 
-    def forward(self, embeds_pos, feats, feats_pos, offset=0):
+    def forward(self, embeds, embeds_pos, feats, feats_pos, offset=0):
         output = []
-        embeds = torch.zeros_like(embeds_pos)
         for i in range(self.num_layers):
             embeds = self.self_attns[i](embeds, embeds_pos)
             embeds = self.cross_attns[i](embeds, feats, embeds_pos, feats_pos, offset=offset)
             embeds = self.ffns[i](embeds)
-            output.append(self.shared_norm(embeds).unsqueeze(0))
-        output = torch.cat(output, dim=0)
-        if self.return_all_layers:
-            return output
-        else:
-            return output[-1]
+            output.append(embeds)
+        output = torch.stack(output, dim=0)
+        if not self.return_all_layers:
+            output = output[-1]
+        output = self.out_norm(output)
+        return output
 
         
 
@@ -61,7 +60,7 @@ class DETREncoder(BaseModule):
             num_layers=6,
             self_attn_cfg=None,
             ffn_cfg=None,
-            out_norm_cfg=None,
+            out_norm_cfg=dict(type='LN'),
             init_cfg=None
         ):
         super().__init__(init_cfg)

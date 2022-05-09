@@ -1,1 +1,1 @@
-from .sine import SineEncoding2d
+from .sine import *

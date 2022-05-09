@@ -2,7 +2,8 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn.bricks.registry import POSITIONAL_ENCODING
+from mmcv.cnn.bricks.registry import POSITIONAL_ENCODING, FEEDFORWARD_NETWORK
+from mmcv import build_from_cfg
 
 
 #x and y are [bs1,bs2,...,bk] x n
@@ -29,7 +30,7 @@ class SineTransform(nn.Module):
         return pos.squeeze(-1)
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, dim=256, mode='add', out_proj=False):
+    def __init__(self, dim=256, mode='add', out_proj=True):
         super().__init__()
         self.dim = dim
         self.mode = mode
@@ -53,7 +54,7 @@ class PositionalEncoding(nn.Module):
 
 @POSITIONAL_ENCODING.register_module()
 class LearnedEncoding1d(PositionalEncoding):
-    def __init__(self, num_embeds=100, dim=256, mode='add', out_proj=False):
+    def __init__(self, num_embeds=100, dim=256, mode='add', out_proj=True):
         super().__init__(mode=mode, out_proj=out_proj)
         self.weight = nn.Embedding(num_embeds, dim).weight
         self.dim = dim
@@ -66,14 +67,48 @@ class LearnedEncoding1d(PositionalEncoding):
 
 
 @POSITIONAL_ENCODING.register_module()
+class RefPointEncoding(PositionalEncoding):
+    def __init__(self, dim=256, mode='add', out_proj=True, scale=2 * math.pi,
+                 ffn_cfg=dict(type='MLP', in_channels=256, hidden_channels=[256], out_channels=2),
+        ):
+        super().__init__(mode=mode, out_proj=out_proj)
+        self.dim = dim
+        self.scale = scale
+        self.sine_transform = SineTransform(dim//2, scale=scale)
+        self.ffn = build_from_cfg(ffn_cfg, FEEDFORWARD_NETWORK)
+
+    def encode(self, x):
+        B, L, C = x.shape
+        ref_points = self.ffn(x).sigmoid()
+        y, x = ref_points[..., 0], ref_points[..., 1]
+        pos_y = self.sine_transform(y)
+        pos_x = self.sine_transform(x)
+        pos = torch.cat([pos_y, pos_x], dim=-1)
+        return pos
+
+@POSITIONAL_ENCODING.register_module()
 class SineEncoding2d(PositionalEncoding):
-    def __init__(self, dim=256, mode='add', out_proj=False, scale=2 * math.pi):
+    def __init__(self, dim=256, mode='add', out_proj=True, scale=2 * math.pi):
         super().__init__(mode=mode, out_proj=out_proj)
         self.dim = dim
         self.scale = scale
         self.sine_transform = SineTransform(dim//2, scale=scale)
 
-    def encode(self, mask):
+    def encode(self, x):
+        B, H, W, C = x.shape
+        mask = torch.ones(H, W)
+        mask = mask.to(dtype=torch.int, device=x.device)
+        # mask = 1 - mask  # logical_not
+        y = mask.cumsum(0, dtype=torch.float32)
+        x = mask.cumsum(1, dtype=torch.float32)
+        pos_y = self.sine_transform(y / y.max())
+        pos_x = self.sine_transform(x / x.max())
+        pos = torch.cat([pos_y, pos_x], dim=-1)
+        pos = pos.unsqueeze(0)
+        pos = pos.expand(B, -1, -1, -1)
+        return pos
+
+    def encode_from_mask(self, mask):
         B, H, W = mask.shape
         # B, H, W, C = x.shape
         # mask = torch.ones(H, W)
