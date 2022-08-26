@@ -65,6 +65,44 @@ class LearnedEncoding1d(PositionalEncoding):
         pos = self.weight.unsqueeze(0)
         return pos
 
+def inverse_sigmoid(p):
+    val = p / (1 - p)
+    return torch.log(val + 1e-8)
+
+@POSITIONAL_ENCODING.register_module()
+class AnchorEncoding(PositionalEncoding):
+    def __init__(self, dim=256, mode='add', out_proj=False, scale=2 * math.pi,
+                 grid_size=(10, 10), learned=False
+        ):
+        super().__init__(mode=mode, out_proj=out_proj)
+        self.dim = dim
+        self.scale = scale
+        self.sine_transform = SineTransform(dim//2, scale=scale)
+        self.grid_size = grid_size
+        x = torch.arange(0, grid_size[0]) / grid_size[0]
+        y = torch.arange(0, grid_size[1]) / grid_size[1]
+        grid_x, grid_y = torch.meshgrid(x, y, indexing='ij')
+        unscaled_params_x = inverse_sigmoid(grid_x)
+        unscaled_params_y = inverse_sigmoid(grid_y)
+        if learned:
+            self.unscaled_params_x = nn.Parameter(unscaled_params_x)
+            self.unscaled_params_y = nn.Parameter(unscaled_params_y)
+        else:
+            self.register_buffer('unscaled_params_x', unscaled_params_x)
+            self.register_buffer('unscaled_params_y', unscaled_params_y)
+
+    def encode(self, x=None):
+        grid_x = self.unscaled_params_x.sigmoid()
+        grid_y = self.unscaled_params_y.sigmoid()
+        pos_x = self.sine_transform(grid_x)
+        pos_y = self.sine_transform(grid_y)
+
+        # B, L, C = x.shape
+        # ref_points = self.ffn(x).sigmoid()
+        # y, x = ref_points[..., 0], ref_points[..., 1]
+        pos = torch.cat([pos_x, pos_y], dim=-1)
+        return pos #grid_size x dim
+
 
 @POSITIONAL_ENCODING.register_module()
 class RefPointEncoding(PositionalEncoding):
