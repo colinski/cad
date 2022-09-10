@@ -18,7 +18,11 @@ class ResSelfAttn(BaseModule):
         ):
         super().__init__(init_cfg)
         self.attn = build_from_cfg(attn_cfg, ATTENTION)
-        self.out_norm = build_norm_layer(out_norm_cfg, attn_cfg['qk_dim'])[1]
+
+        self.out_norm = None
+        if out_norm_cfg is not None:
+            self.out_norm = build_norm_layer(out_norm_cfg, attn_cfg['qk_dim'])[1]
+
         self.res_dropout = build_from_cfg(res_dropout_cfg, DROPOUT_LAYERS)
     
     def forward(self, x, x_pos=None, offset=0):
@@ -26,7 +30,8 @@ class ResSelfAttn(BaseModule):
         encoded_x = x if x_pos is None else x + x_pos
         x = self.attn(encoded_x, encoded_x, x, offset=offset)
         x = identity + self.res_dropout(x)
-        x = self.out_norm(x)
+        if self.out_norm is not None:
+            x = self.out_norm(x)
         return x
 
 @ATTENTION.register_module()
