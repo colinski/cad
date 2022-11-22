@@ -66,13 +66,19 @@ class DETREncoder(BaseModule):
         super().__init__(init_cfg)
         self.num_layers = num_layers
         self.self_attns = [build_from_cfg(self_attn_cfg, ATTENTION) for i in range(num_layers)]
-        self.ffns = [build_from_cfg(ffn_cfg, FEEDFORWARD_NETWORK) for i in range(num_layers)]
+        self.self_attns = nn.ModuleList(self.self_attns)
+
+        self.ffns = None
+        if ffn_cfg is not None:
+            self.ffns = [build_from_cfg(ffn_cfg, FEEDFORWARD_NETWORK) for i in range(num_layers)]
+            self.ffns = nn.ModuleList(self.ffns)
         
         self.dim = self.self_attns[0].attn.qk_dim
-        self.out_norm = build_norm_layer(out_norm_cfg, self.dim)[1]
+
+        self.out_norm = None
+        if out_norm_cfg is not None:
+            self.out_norm = build_norm_layer(out_norm_cfg, self.dim)[1]
         
-        self.self_attns = nn.ModuleList(self.self_attns)
-        self.ffns = nn.ModuleList(self.ffns)
 
     def init_weights(self):
         # follow the official DETR to init parameters
@@ -84,6 +90,8 @@ class DETREncoder(BaseModule):
     def forward(self, feats, feats_pos, offset=0):
         for i in range(self.num_layers):
             feats = self.self_attns[i](feats, feats_pos, offset=offset)
-            feats = self.ffns[i](feats)
-        feats = self.out_norm(feats)
+            if self.ffns is not None:
+                feats = self.ffns[i](feats)
+        if self.out_norm is not None:
+            feats = self.out_norm(feats)
         return feats
