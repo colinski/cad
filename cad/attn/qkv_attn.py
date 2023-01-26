@@ -1,12 +1,11 @@
-# Copyright (c) OpenMMLab. All rights reserved.
 import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn.bricks.registry import ATTENTION
 
-
 #basic scaled dot product attn
+#adapted from torch impl
 @ATTENTION.register_module()
 class QKVAttention(nn.Module):
     def __init__(self, 
@@ -16,7 +15,6 @@ class QKVAttention(nn.Module):
                  out_proj=True,
                  attn_drop=0.1, 
                  seq_drop=0.0,
-                 return_weights=False,
                  v_dim=None
         ):
         super().__init__()
@@ -25,7 +23,6 @@ class QKVAttention(nn.Module):
         self.num_heads = num_heads
         self.attn_dropout = nn.Dropout(attn_drop, inplace=False)
         self.seq_dropout = nn.Dropout2d(seq_drop, inplace=False)
-        self.return_weights = return_weights
         self.q_scaling = float(self.qk_dim // self.num_heads) ** -0.5
         
         self.in_proj = None
@@ -60,8 +57,8 @@ class QKVAttention(nn.Module):
         return x
     
     #q,k,v are B ... D
-    #offset must be broadcastable to add with to B nh L L
-    def forward(self, q, k, v, offset=0):
+    #offset must be broadcastable to add with B nh L L
+    def forward(self, q, k, v, offset=0, return_weights=False):
         orig_shape = q.shape
         q, k, v = (x.reshape(x.shape[0], -1, x.shape[-1]) for x in (q, k, v))
         if self.in_proj:
@@ -84,6 +81,6 @@ class QKVAttention(nn.Module):
         out = self.seq_dropout(out.unsqueeze(-1)).squeeze(-1)
         out = out.reshape(orig_shape)
 
-        if self.return_weights:
+        if return_weights:
             out = (out, A)
         return out
