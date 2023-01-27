@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn.bricks.registry import ATTENTION
 from mmcv.ops import MultiScaleDeformableAttention
+from cad.pos.sine import AnchorEncoding
 
 #copied from mmdetection impl of DeformableDETR
 def get_reference_points(spatial_shapes, valid_ratios, device):
@@ -63,9 +64,15 @@ class DeformableAttention2D(torch.nn.Module):
             dropout=attn_drop,
             batch_first=False
         )
-        
+        self.pos_encoding = AnchorEncoding(
+            dim=qk_dim, grid_size=(100,100), 
+            out_proj=False, learned=False
+        )
+    
     def forward(self, feats):
         spatial_shapes, flat_feats = [], []
+        # pos_embeds = self.pos_encoding(None)
+        # import ipdb; ipdb.set_trace() # noqa
         for feat in feats:
             B, D, H, W = feat.shape
             shape = torch.tensor([H, W])
