@@ -64,6 +64,7 @@ class DeformableAttention2D(torch.nn.Module):
             dropout=attn_drop,
             batch_first=False
         )
+<<<<<<< HEAD
         self.pos_encoding = AnchorEncoding(dim=qk_dim,
                 out_proj=False, learned=False,
                 grid_size=(100,100),
@@ -75,6 +76,17 @@ class DeformableAttention2D(torch.nn.Module):
         spatial_shapes, flat_feats, query_pos = [], [], []
         pos_embeds = self.pos_encoding(None).unsqueeze(0)
         pos_embeds = pos_embeds.permute(0, 3, 1, 2)
+=======
+        self.pos_encoding = AnchorEncoding(
+            dim=qk_dim, grid_size=(100,100), 
+            out_proj=False, learned=False
+        )
+    
+    def forward(self, feats):
+        spatial_shapes, flat_feats = [], []
+        # pos_embeds = self.pos_encoding(None)
+        # import ipdb; ipdb.set_trace() # noqa
+>>>>>>> 68081b63b12c408b5ce53a70a83a4e90fbe7639c
         for feat in feats:
             B, D, H, W = feat.shape
             shape = torch.tensor([H, W])
