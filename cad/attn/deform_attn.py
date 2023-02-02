@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn.bricks.registry import ATTENTION
 from mmcv.ops import MultiScaleDeformableAttention
+from cad.pos.sine import AnchorEncoding
 
 #copied from mmdetection impl of DeformableDETR
 def get_reference_points(spatial_shapes, valid_ratios, device):
@@ -63,15 +64,27 @@ class DeformableAttention2D(torch.nn.Module):
             dropout=attn_drop,
             batch_first=False
         )
+        self.pos_encoding = AnchorEncoding(dim=qk_dim,
+                out_proj=False, learned=False,
+                grid_size=(100,100),
+        )
+
+
         
     def forward(self, feats):
-        spatial_shapes, flat_feats = [], []
+        spatial_shapes, flat_feats, query_pos = [], [], []
+        pos_embeds = self.pos_encoding(None).unsqueeze(0)
+        pos_embeds = pos_embeds.permute(0, 3, 1, 2)
         for feat in feats:
             B, D, H, W = feat.shape
             shape = torch.tensor([H, W])
             spatial_shapes.append(shape)
             flat_feats.append(feat.flatten(2).permute(2, 0, 1))
+            pos = F.interpolate(pos_embeds, (H, W))
+            query_pos.append(pos.flatten(2).permute(2, 0, 1))
+
         flat_feats = torch.cat(flat_feats, dim=0)
+        query_pos = torch.cat(query_pos, dim=0)
         
         spatial_shapes = torch.stack(spatial_shapes).to(flat_feats.device)
         
@@ -82,6 +95,7 @@ class DeformableAttention2D(torch.nn.Module):
         valid_ratios = torch.ones(len(feats[0]), len(feats), 2).to(flat_feats.device)
         ref_points = get_reference_points(spatial_shapes, valid_ratios, flat_feats.device)
         result = self.attn(flat_feats, reference_points=ref_points, 
+                      query_pos=query_pos,
                       spatial_shapes=spatial_shapes,
                       level_start_index=level_start_index)
         outputs = []
